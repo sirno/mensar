@@ -98,24 +98,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let meals_response = reqwest::get(&meals_url).await?;
     let mensa_meals: Vec<Mensa> = meals_response.json().await?;
 
-    let mensa = match mensa_meals
+    match mensa_meals
         .iter()
         .find(|&m| m.mensa.to_lowercase().contains(&opts.input.to_lowercase()))
     {
-        Some(mensa) => mensa,
-        None => &mensa_meals[0],
+        Some(mensa) => {
+            for meal in &mensa.meals {
+                println!("{}", meal.label.bold());
+                println!("{}", meal.description[0]);
+                for i in 1..meal.description.len() {
+                    println!(
+                        "{}",
+                        indent(fill(meal.description[i].as_str(), 40).as_str(), "    ")
+                    );
+                }
+                println!("");
+            }
+        }
+        None => {
+            println!("Could not find mensa, it might be closed today.");
+        }
     };
 
-    for meal in &mensa.meals {
-        println!("{}", meal.label.bold());
-        println!("{}", meal.description[0]);
-        for i in 1..meal.description.len() {
-            println!(
-                "{}",
-                indent(fill(meal.description[i].as_str(), 40).as_str(), "    ")
-            );
-        }
-        println!("");
-    }
     Ok(())
 }
