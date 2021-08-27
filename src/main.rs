@@ -1,4 +1,5 @@
 use chrono::{DateTime, Local};
+use clap::{AppSettings, Clap};
 use colored::*;
 use serde::Deserialize;
 use std::iter::Iterator;
@@ -70,21 +71,42 @@ struct Mensa {
     meals: Vec<Meal>,
 }
 
+#[derive(Clap)]
+#[clap(version = "0.1", author = "Nicolas Ochsner <nicolasochsner@gmail.com>")]
+#[clap(setting = AppSettings::ColoredHelp)]
+struct Opts {
+    #[clap(default_value = "poly")]
+    input: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let opts: Opts = Opts::parse();
+
+    let baseurl = "https://www.webservices.ethz.ch/gastro/v1/RVRI/Q1E1";
+    let lang = "en";
     let localtime: DateTime<Local> = Local::now();
-    let mensa_url = format!(
-        "https://www.webservices.ethz.ch/gastro/v1/RVRI/Q1E1/meals/{lang}/{date}/{time}",
-        lang = "en",
+
+    let meals_url = format!(
+        "{baseurl}/meals/{lang}/{date}/{time}",
+        baseurl = baseurl,
+        lang = lang,
         date = format!("{}", localtime.format("%F")),
         time = "lunch",
     );
-    let response = reqwest::get(&mensa_url).await?;
-    let mensas: Vec<Mensa> = response.json().await?;
 
-    let pt = mensas.iter().find(|&m| m.id == 12).unwrap();
+    let meals_response = reqwest::get(&meals_url).await?;
+    let mensa_meals: Vec<Mensa> = meals_response.json().await?;
 
-    for meal in &pt.meals {
+    let mensa = match mensa_meals
+        .iter()
+        .find(|&m| m.mensa.to_lowercase().contains(&opts.input.to_lowercase()))
+    {
+        Some(mensa) => mensa,
+        None => &mensa_meals[0],
+    };
+
+    for meal in &mensa.meals {
         println!("{}", meal.label.bold());
         println!("{}", meal.description[0]);
         for i in 1..meal.description.len() {
