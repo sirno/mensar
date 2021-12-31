@@ -1,5 +1,5 @@
 use chrono::{DateTime, Local};
-use clap::{AppSettings, Clap};
+use clap::Parser;
 use colored::*;
 use serde::Deserialize;
 use std::fmt;
@@ -92,9 +92,8 @@ struct Mensa {
     meals: Vec<Meal>,
 }
 
-#[derive(Clap)]
-#[clap(version = "0.1", author = "Nicolas Ochsner <nicolasochsner@gmail.com>")]
-#[clap(setting = AppSettings::ColoredHelp)]
+#[derive(Parser, Debug)]
+#[clap(about, version, author)]
 struct Opts {
     #[clap(default_value = "poly")]
     mensa: String,
