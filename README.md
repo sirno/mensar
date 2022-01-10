@@ -1,3 +1,4 @@
 # MENSAR
 
-Small tool that allows me to check today's menu in Polyterasse Mensa.
+Finally, the menu of Polyterasse Mensa right in your prompt. 
+
