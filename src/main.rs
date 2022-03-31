@@ -95,7 +95,7 @@ struct Mensa {
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
 struct Opts {
-    #[clap(default_value = "poly")]
+    #[clap(default_value = "polyterrasse")]
     mensa: String,
     #[clap(long, default_value = "de")]
     lang: String,
