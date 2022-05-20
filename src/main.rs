@@ -1,3 +1,6 @@
+mod cli;
+
+use crate::cli::Opts;
 use chrono::{DateTime, Local};
 use clap::Parser;
 use colored::*;
@@ -90,19 +93,6 @@ struct Mensa {
     hours: Hours,
     location: Location,
     meals: Vec<Meal>,
-}
-
-#[derive(Parser, Debug)]
-#[clap(about, version, author)]
-struct Opts {
-    #[clap(default_value = "polyterrasse")]
-    mensa: String,
-    #[clap(long, default_value = "de")]
-    lang: String,
-    #[clap(short, long)]
-    prices: bool,
-    #[clap(short, long)]
-    list: bool,
 }
 
 fn show_available_mensas(mensa_meals: Vec<Mensa>) {
