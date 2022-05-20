@@ -9,6 +9,7 @@ use std::fmt;
 use std::iter::Iterator;
 use textwrap::{fill, indent};
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct Hour {
     from: String,
@@ -16,18 +17,21 @@ struct Hour {
     r#type: String,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct Hours {
     opening: Vec<Hour>,
     mealtime: Vec<Hour>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct Location {
     id: u32,
     label: String,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct Meal {
     id: u32,
@@ -40,24 +44,28 @@ struct Meal {
     origins: Option<Vec<Origin>>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct MealType {
     mealtype_id: u32,
     label: String,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct Allergene {
     allergene_id: u32,
     label: String,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct Origin {
     origin_id: u32,
     label: String,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct Prices {
     student: Option<String>,
@@ -85,6 +93,7 @@ impl fmt::Display for Prices {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct Mensa {
     id: u32,
