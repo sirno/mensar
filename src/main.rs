@@ -1,166 +1,136 @@
 mod cli;
 
 use crate::cli::Opts;
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, NaiveDate, NaiveTime};
 use clap::Parser;
 use colored::*;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::fmt;
 use std::iter::Iterator;
 use textwrap::{fill, indent};
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
-struct Hour {
-    from: String,
-    to: String,
-    r#type: String,
+#[serde(rename_all = "kebab-case")]
+struct Facility {
+    facility_id: usize,
+    facility_name: String,
+    facility_url: String,
+
+    building: String,
+    floor: String,
+
+    address_line_2: String,
+    address_line_3: String,
+    phone: String,
+
+    caterer_name: Option<String>,
+    caterer_url: Option<String>,
+
+    publication_type_code: usize,
+    publication_type_desc: String,
+    publication_type_desc_short: String,
 }
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
-struct Hours {
-    opening: Vec<Hour>,
-    mealtime: Vec<Hour>,
+#[serde(rename_all = "kebab-case")]
+struct WeeklyRotas {
+    weekly_rota_id: usize,
+    facility_id: usize,
+    valid_from: NaiveDate,
+    valid_to: Option<NaiveDate>,
+    day_of_week_array: Vec<DayOfWeek>,
 }
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
-struct Location {
-    id: u32,
-    label: String,
+#[serde(rename_all = "kebab-case")]
+struct DayOfWeek {
+    day_of_week_code: usize,
+    day_of_week_desc: String,
+    day_of_week_desc_short: String,
+    opening_hour_array: Option<Vec<OpeningHour>>,
 }
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct Times {
+    time_from: NaiveTime,
+    time_to: NaiveTime,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct OpeningHour {
+    #[serde(flatten)]
+    times: Times,
+    meal_time_array: Option<Vec<MealTime>>,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct MealTime {
+    name: String,
+    #[serde(flatten)]
+    times: Times,
+    line_array: Option<Vec<LineElement>>,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+struct LineElement {
+    name: String,
+    meal: Option<Meal>,
+}
+
+#[allow(dead_code)]
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
 struct Meal {
-    id: u32,
-    mealtypes: Vec<MealType>,
-    label: String,
-    description: Vec<String>,
-    position: u32,
-    prices: Prices,
-    allergenes: Option<Vec<Allergene>>,
-    origins: Option<Vec<Origin>>,
+    name: String,
+    description: String,
+    meal_price_array: Vec<MealPrice>,
 }
 
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
-struct MealType {
-    mealtype_id: u32,
-    label: String,
-}
-
-#[allow(dead_code)]
-#[derive(Deserialize, Debug)]
-struct Allergene {
-    allergene_id: u32,
-    label: String,
-}
-
-#[allow(dead_code)]
-#[derive(Deserialize, Debug)]
-struct Origin {
-    origin_id: u32,
-    label: String,
-}
-
-#[allow(dead_code)]
-#[derive(Deserialize, Debug)]
-struct Prices {
-    student: Option<String>,
-    staff: Option<String>,
-    r#extern: Option<String>,
-}
-
-impl fmt::Display for Prices {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let rep = match (
-            self.student.as_ref(),
-            self.staff.as_ref(),
-            self.r#extern.as_ref(),
-        ) {
-            (Some(a), Some(b), Some(c)) => format!("{}/{}/{}", a, b, c),
-            (Some(a), None, None) => a.clone(),
-            (None, Some(b), None) => b.clone(),
-            (None, None, Some(c)) => c.clone(),
-            (Some(a), Some(b), None) => format!("{}/{}", a, b),
-            (None, Some(b), Some(c)) => format!("{}/{}", b, c),
-            (Some(a), None, Some(c)) => format!("{}/{}", a, c),
-            (None, None, None) => "".to_string(),
-        };
-        write!(f, "{}", rep)
-    }
-}
-
-#[allow(dead_code)]
-#[derive(Deserialize, Debug)]
-struct Mensa {
-    id: u32,
-    daytime: String,
-    mensa: String,
-    hours: Hours,
-    location: Location,
-    meals: Vec<Meal>,
-}
-
-fn show_available_mensas(mensa_meals: Vec<Mensa>) {
-    for mensa in mensa_meals {
-        println!("{}", mensa.mensa)
-    }
-}
-
-fn show_meals_for_mensa(mensa_meals: Vec<Mensa>, mensa_name: &str, show_prices: bool) {
-    match mensa_meals
-        .iter()
-        .find(|&m| m.mensa.to_lowercase().contains(&mensa_name.to_lowercase()))
-    {
-        Some(mensa) => {
-            for meal in &mensa.meals {
-                println!("{}", meal.label.bold());
-                println!("{}", meal.description[0]);
-                for i in 1..meal.description.len() {
-                    if !meal.description[i].is_empty() {
-                        println!(
-                            "{}",
-                            indent(fill(meal.description[i].as_str(), 40).as_str(), "    ")
-                        );
-                    }
-                }
-                if show_prices {
-                    println!("\t\t\t\t{}", meal.prices);
-                }
-                println!();
-            }
-        }
-        None => {
-            println!("Could not find mensa, it might be closed today.");
-        }
-    };
+#[serde(rename_all = "kebab-case")]
+struct MealPrice {
+    price: f64,
+    customer_group_code: usize,
+    customer_group_position: usize,
+    customer_group_desc: String,
+    customer_group_desc_short: String,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts: Opts = Opts::parse();
 
-    let baseurl = "https://www.webservices.ethz.ch/gastro/v1/RVRI/Q1E1";
+    let baseurl = "https://idapps.ethz.ch/cookpit-pub-services/v1";
     let localtime: DateTime<Local> = Local::now();
 
+    let facilities_url =
+        format!("{baseurl}/facilities?client-id=ethz-wcms&lang=en&rs-first=0&rs-size=50");
+    let facilities_response = reqwest::get(&facilities_url).await?;
+    let facilities: HashMap<String, Vec<Facility>> = facilities_response.json().await?;
+
+    dbg!(facilities);
+
+    let date = localtime.format("%F");
     let meals_url = format!(
-        "{baseurl}/meals/{lang}/{date}/{time}",
-        baseurl = baseurl,
-        lang = opts.lang,
-        date = format!("{}", localtime.format("%F")),
-        time = "lunch",
-    );
+        "{baseurl}/weeklyrotas?client-id=ethz-wcms&lang={lang}&rs-first=0&rs-size=50&valid-after={date}", lang = opts.lang);
 
     let meals_response = reqwest::get(&meals_url).await?;
-    let mensa_meals: Vec<Mensa> = meals_response.json().await?;
+    let mensa_meals: HashMap<String, Vec<WeeklyRotas>> = meals_response.json().await?;
 
-    if opts.list {
-        show_available_mensas(mensa_meals);
-    } else {
-        show_meals_for_mensa(mensa_meals, &opts.mensa, opts.prices);
-    }
+    dbg!(mensa_meals);
+
     Ok(())
 }
