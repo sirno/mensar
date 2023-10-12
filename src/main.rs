@@ -126,15 +126,19 @@ impl fmt::Display for Facilities {
 }
 
 #[derive(Clone, Debug)]
-enum MensarError {
-    FacilityNotFound(String),
+enum MensarError<'a> {
+    FacilityNotFound(&'a String),
+    NoDailyMeals(&'a String),
 }
 
-impl fmt::Display for MensarError {
+impl<'a> fmt::Display for MensarError<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let msg = match self {
             MensarError::FacilityNotFound(facility) => {
                 format!("could not find facility `{facility}`")
+            }
+            MensarError::NoDailyMeals(facility) => {
+                format!("no daily meals for `{facility}`")
             }
         };
         write!(f, "mensar: {msg}")?;
@@ -142,7 +146,12 @@ impl fmt::Display for MensarError {
     }
 }
 
-impl std::error::Error for MensarError {}
+impl<'a> std::error::Error for MensarError<'a> {}
+
+fn exit(error: MensarError) -> ! {
+    println!("{}", error);
+    std::process::exit(1);
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -168,13 +177,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .contains(&opts.mensa.to_lowercase())
     }) {
         Some(f) => f,
-        None => {
-            println!("{}", MensarError::FacilityNotFound(opts.mensa));
-            std::process::exit(1);
-        }
+        None => exit(MensarError::FacilityNotFound(&opts.mensa)),
     };
-
-    // dbg!(&facility);
 
     let date = localtime.format("%F");
     let meals_url = format!(
@@ -192,14 +196,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let weekday = localtime.weekday().number_from_monday();
     let daily_meals = facility_meals
-        .unwrap()
+        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&opts.mensa)))
         .day_of_week_array
         .iter()
         .find(|d| d.day_of_week_code == weekday);
-    let opening_hours = daily_meals.unwrap().opening_hour_array.clone();
-    let opening_hour = &opening_hours.unwrap()[0];
 
-    dbg!(opening_hour);
+    let opening_hours = &daily_meals
+        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&opts.mensa)))
+        .opening_hour_array;
+    let opening_hour = &opening_hours
+        .as_ref()
+        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&opts.mensa)))[0];
+
+    let meal_times = &opening_hour
+        .meal_time_array
+        .as_ref()
+        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&opts.mensa)));
+    let meal_time = &meal_times[0];
+
+    let meals = meal_time
+        .line_array
+        .as_ref()
+        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&opts.mensa)));
+
+    for meal in meals {
+        println!("{}", meal.name.bold());
+        if let Some(meal_details) = &meal.meal {
+            println!("{}", indent(meal_details.name.as_str(), "    "));
+            println!(
+                "{}",
+                indent(fill(meal_details.description.as_str(), 40).as_str(), "    ")
+            );
+            if opts.prices {
+                let prices = meal_details
+                    .meal_price_array
+                    .iter()
+                    .map(|mp| format!("{}", mp.price))
+                    .collect::<Vec<String>>()
+                    .join(" / ");
+                println!("{}", indent(prices.as_str(), "\t\t\t\t"));
+            }
+        }
+    }
 
     Ok(())
 }
