@@ -18,14 +18,14 @@ use textwrap::{fill, indent};
 struct Facility {
     facility_id: usize,
     facility_name: String,
-    facility_url: String,
+    facility_url: Option<String>,
 
     building: String,
     floor: String,
 
     address_line_2: String,
     address_line_3: String,
-    phone: String,
+    phone: Option<String>,
 
     caterer_name: Option<String>,
     caterer_url: Option<String>,
