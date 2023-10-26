@@ -217,7 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let mut defaults = Defaults::load().unwrap();
             defaults.set_lang(name.clone());
             defaults.store().unwrap();
-            println!("mensar: stored default mensa `{name}`");
+            println!("mensar: stored default language `{name}`");
             return Ok(());
         },
         None => {}
