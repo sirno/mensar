@@ -13,6 +13,7 @@ textwrap = "0.16.0"
 colored = "2.0.4"
 clap = { version = "4.4.6", features = ["derive"] }
 derive_more = "0.99"
+toml = "0.8.4"
 
 [build-dependencies]
 clap = { version = "4.4.6", features = ["derive"] }

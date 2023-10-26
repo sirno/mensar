@@ -1,16 +1,19 @@
 mod cli;
 
-use crate::cli::Opts;
+use crate::cli::{Opts, Commands};
 use chrono::prelude::*;
 use chrono::{DateTime, Local, NaiveDate, NaiveTime};
 use clap::Parser;
 use colored::*;
 use derive_more::{Deref, From, Into};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::iter::Iterator;
 use textwrap::{fill, indent};
+use std::fs;
+use std::path::Path;
+
 
 #[allow(dead_code)]
 #[derive(Clone, Deserialize, Debug)]
@@ -127,8 +130,9 @@ impl fmt::Display for Facilities {
 
 #[derive(Clone, Debug)]
 enum MensarError<'a> {
-    FacilityNotFound(&'a String),
-    NoDailyMeals(&'a String),
+    FacilityNotFound(&'a str),
+    NoDailyMeals(&'a str),
+    DefaultsError(&'static str),
 }
 
 impl<'a> fmt::Display for MensarError<'a> {
@@ -139,6 +143,9 @@ impl<'a> fmt::Display for MensarError<'a> {
             }
             MensarError::NoDailyMeals(facility) => {
                 format!("no daily meals for `{facility}`")
+            }
+            MensarError::DefaultsError(msg) => {
+                format!("unable to load defaults: `{msg}`")
             }
         };
         write!(f, "mensar: {msg}")?;
@@ -153,9 +160,73 @@ fn exit(error: MensarError) -> ! {
     std::process::exit(1);
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct Defaults {
+    #[serde(default = "Defaults::default_mensa")]
+    mensa: String,
+    #[serde(default = "Defaults::default_lang")]
+    lang: String,
+}
+
+impl Defaults {
+    fn default_mensa() -> String {
+        "polyterrasse".to_string()
+    }
+
+    fn default_lang() -> String {
+        "en".to_string()
+    }
+
+    fn load() -> Result<Self, MensarError<'static>> {
+        let home = std::env::var("HOME").unwrap();
+        let defaults_path = Path::new(&home).join(".local/share/mensar/defaults.toml");
+        let content = fs::read_to_string(&defaults_path).unwrap();
+        toml::from_str(&content).map_err(|_e| MensarError::DefaultsError("unable to parse defaults"))
+    }
+
+    fn store(&self) -> Result<(), MensarError> {
+        let home = std::env::var("HOME").unwrap();
+        let defaults_path = Path::new(&home).join(".local/share/mensar/defaults.toml");
+        let content = toml::to_string(self).map_err(|_e| MensarError::DefaultsError("unable to write defaults"))?;
+        fs::write(defaults_path, content.as_str()).map_err(|_e| MensarError::DefaultsError("unable to write defaults"))
+    }
+
+    fn set_mensa(&mut self, value: String) {
+        self.mensa = value;
+    }
+
+    fn set_lang(&mut self, value: String) {
+        self.lang = value;
+    }
+}
+
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opts: Opts = Opts::parse();
+
+    match opts.command {
+        Some(Commands::SetMensa { name }) => {
+            let mut defaults = Defaults::load().unwrap();
+            defaults.set_mensa(name.clone());
+            defaults.store().unwrap();
+            println!("mensar: stored default mensa `{name}`");
+            return Ok(());
+        },
+        Some(Commands::SetLanguage { name }) => {
+            let mut defaults = Defaults::load().unwrap();
+            defaults.set_lang(name.clone());
+            defaults.store().unwrap();
+            println!("mensar: stored default mensa `{name}`");
+            return Ok(());
+        },
+        None => {}
+    }
+
+    let defaults = Defaults::load().unwrap();
+
+    let mensa = opts.mensa.unwrap_or(defaults.mensa);
+    let lang = opts.lang.unwrap_or(defaults.lang);
 
     let baseurl = "https://idapps.ethz.ch/cookpit-pub-services/v1";
     let localtime: DateTime<Local> = Local::now();
@@ -174,15 +245,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let facility = match facilities.iter().find(|&f| {
         f.facility_name
             .to_lowercase()
-            .contains(&opts.mensa.to_lowercase())
+            .contains(&mensa.to_lowercase())
     }) {
         Some(f) => f,
-        None => exit(MensarError::FacilityNotFound(&opts.mensa)),
+        None => exit(MensarError::FacilityNotFound(&mensa)),
     };
 
     let date = localtime.format("%F");
     let meals_url = format!(
-        "{baseurl}/weeklyrotas?client-id=ethz-wcms&lang={lang}&rs-first=0&rs-size=50&valid-after={date}", lang = opts.lang);
+        "{baseurl}/weeklyrotas?client-id=ethz-wcms&lang={lang}&rs-first=0&rs-size=50&valid-after={date}");
 
     let meals_response = reqwest::get(&meals_url).await?;
     let meals_json: HashMap<String, Vec<WeeklyRotas>> = meals_response.json().await?;
@@ -196,28 +267,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let weekday = localtime.weekday().number_from_monday();
     let daily_meals = facility_meals
-        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&opts.mensa)))
+        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&mensa)))
         .day_of_week_array
         .iter()
         .find(|d| d.day_of_week_code == weekday);
 
     let opening_hours = &daily_meals
-        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&opts.mensa)))
+        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&mensa)))
         .opening_hour_array;
     let opening_hour = &opening_hours
         .as_ref()
-        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&opts.mensa)))[0];
+        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&mensa)))[0];
 
     let meal_times = &opening_hour
         .meal_time_array
         .as_ref()
-        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&opts.mensa)));
+        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&mensa)));
     let meal_time = &meal_times[0];
 
     let meals = meal_time
         .line_array
         .as_ref()
-        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&opts.mensa)));
+        .unwrap_or_else(|| exit(MensarError::NoDailyMeals(&mensa)));
 
     for meal in meals {
         println!("{}", meal.name.bold());

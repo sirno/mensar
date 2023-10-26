@@ -1,15 +1,19 @@
 use clap::Parser;
+use clap::Subcommand;
 
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
 pub struct Opts {
+    #[command(subcommand)]
+    pub command: Option<Commands>,
+
     /// Name of mensa
-    #[clap(default_value = "polyterrasse")]
-    pub mensa: String,
+    #[clap()]
+    pub mensa: Option<String>,
 
     /// Language (de / en)
-    #[clap(long, default_value = "de")]
-    pub lang: String,
+    #[clap(long)]
+    pub lang: Option<String>,
 
     /// Show prices
     #[clap(short, long)]
@@ -18,4 +22,14 @@ pub struct Opts {
     /// List available mensas
     #[clap(short, long)]
     pub list: bool,
+}
+
+    
+#[derive(Subcommand, Debug)]
+pub enum Commands {
+    /// Set your default mensa
+    SetMensa { name: String },
+
+    /// Set your default language
+    SetLanguage { name: String },
 }
