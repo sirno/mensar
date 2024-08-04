@@ -1,5 +1,5 @@
-use clap::Parser;
-use clap::Subcommand;
+use chrono::NaiveDate;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[clap(about, version, author)]
@@ -15,6 +15,14 @@ pub struct Opts {
     #[clap(long)]
     pub lang: Option<String>,
 
+    /// Date (YYYY-MM-DD) for which to show menu
+    #[clap(short, long)]
+    pub date: Option<NaiveDate>,
+
+    /// Show menu for tomorrow
+    #[clap(short, long)]
+    pub tomorrow: bool,
+
     /// Show prices
     #[clap(short, long)]
     pub prices: bool,
@@ -24,7 +32,6 @@ pub struct Opts {
     pub list: bool,
 }
 
-    
 #[derive(Subcommand, Debug)]
 pub enum Commands {
     /// Set your default mensa
